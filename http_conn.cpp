@@ -484,7 +484,7 @@ bool http_conn::process_write(HTTP_CODE ret) {
             m_iv[ 1 ].iov_len = m_file_stat.st_size;
             m_iv_count = 2;
 
-            bytes_to_send = m_write_idx + m_file_stat.st_size;
+            bytes_to_send = m_write_idx + m_file_stat.st_size;//之前没有这一步
 
             return true;
         default:
