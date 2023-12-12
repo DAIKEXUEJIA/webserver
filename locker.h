@@ -30,6 +30,18 @@ public:
     bool lock(){
         //判断是不是==0意味着上锁成功
         return pthread_mutex_lock(&m_mutex)==0;
+        /*
+        lock 函数是基于 pthread_mutex_lock 实现的。这个函数的行为是尝试获取一个互斥锁（mutex）。
+        如果互斥锁已经被其他线程持有，那么调用 pthread_mutex_lock 的线程将会阻塞，直到互斥锁被释放。
+        
+        如果 pthread_mutex_lock 在尝试获取互斥锁时遇到错误（例如，互斥锁已经被销毁），它会返回一个非零值，这时您的 lock 函数会返回 false。
+    然而，在死锁的情况下，pthread_mutex_lock 通常不会返回错误，而是,会导致线程阻塞。
+    这意味着线程会停在 pthread_mutex_lock 调用处，等待互斥锁变得可用。在这种情况下，lock 函数不会返回任何值，因为线程被挂起了。
+
+    死锁的问题通常不是因为 pthread_mutex_lock 函数本身的失败，而是因为线程间的相互等待导致的阻塞。
+    例如，如果线程A持有一个互斥锁并等待一个条件（例如信号量），同时线程B需要这个互斥锁才能触发线程A等待的条件，就会发生死锁。
+    如果 lock 函数在尝试获取锁时导致死锁，它实际上不会返回任何值，因为线程将在 pthread_mutex_lock 调用处被挂起。
+        */
     }
     //解锁函数
     bool unlock(){

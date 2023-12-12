@@ -14,12 +14,14 @@
 //设计线程池类，这里为了通用，用模板的方式指定
 //线程池定义成模板类，是为了实现代码的复用
 
+//通过生产者-消费者模型来实现线程同步。线程同步的主要目的是防止由于多个线程同时访问和修改共享数据，而引起的数据不一致和竞争条件。
+//线程同步作用对象是工作队列
 
 
 template<typename T>//模板参数T就是任务类
 class threadPool{
 public:
-    //构造函数，线程数目是8
+    //构造函数，线程数目是8,为什么是8个，因为本项目是IO密集型服务器而不是计算密集型
     threadPool(int thread_num=8,int max_requests=10000);//不指定的话就是8和10000
     //析构函数
     ~threadPool();
@@ -30,7 +32,8 @@ public:
 private:
 //构造函数里，子线程需要执行的函数worker，必须是静态函数！
     static void* worker(void* arg);//参数void* 泛型编程
-    void run();
+    void run(); //run函数是线程池中每个线程的核心工作循环。
+//它持续检查工作队列，等待有任务到来。一旦队列中有任务，run函数会将其取出并执行。这个过程包括等待队列中的任务（通过信号量），从队列中取出任务，并执行这些任务。
 
 private:
     //线程的数量
@@ -101,8 +104,9 @@ threadPool<T>:: ~threadPool(){
 template<typename T>
 bool threadPool<T>::append(T* request)//前面要放上返回值
 {
+    //上锁失败，会返回错误
     m_queuelocker.lock();//上锁，工作队列是公共的，要确保安全
-    //不可继续添加的时候，返回错误
+    //不可继续添加的时候，返回错误（比如死锁）
     if(m_workqueue.size()>m_max_requests){
         m_queuelocker.unlock();//超过了最大数目，解锁
         return false;
@@ -117,10 +121,9 @@ bool threadPool<T>::append(T* request)//前面要放上返回值
 
     //添加成功返回true
     return true;
-
-
 }
 
+//线程池的worker函数
 template<typename T>
 void* threadPool<T>::worker(void* arg){
     //不需要再写static了
@@ -131,6 +134,14 @@ void* threadPool<T>::worker(void* arg){
     pool->run();
     return pool;//返回值其实没意义
 }
+
+
+/*
+这个线程池的run函数，wait阻塞函数必须放在lock之前，不能放在lock之后.
+如果run里面先Lock后wait，就会导致线程一创建就直接给工作队列加锁，然后进入wait阻塞状态（因为此时信号量=0，没有生产者来增加这个信号量），
+导致主线程调用append的时候，无法访问工作队列增加任务，就会发生死锁。
+会导致主线程一直在append位置阻塞不运行。我在vscode 打断点调试的时候发现，append之前的断点都是正常的，append位置的断点会报错。从而发现是append发送任务到工作线程的时候发生了死锁。
+*/
 
 template<typename T>
 void threadPool<T>::run(){
@@ -154,6 +165,12 @@ void threadPool<T>::run(){
             continue;
         }
         request->process();//每个任务对应一个process方法，每个任务类都应该实现这个方法，以定义它们的具体行为。
+        /*
+        process方法的定义
+    独立于线程池: process方法通常定义在任务类（T类型）中，而不是直接在线程池类中定义。这样做的目的是为了使任务逻辑独立于线程池的实现，从而使线程池更通用和灵活。
+    任务类的责任: 当创建一个具体的任务时，你需要定义这个任务类，并实现它的process方法。这个方法包含了任务的实际执行逻辑。
+        
+        */
     }
 }
 
